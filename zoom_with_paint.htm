@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Test</title>
+		<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+		<style>
+			*{margin:0;padding:0}
+			html,body{height:100%;width:100%;background-color:black}
+			.wrapper{position:relative;width:300px;height:300px;background-color:white}
+			.wrapper canvas{position:absolute;top:0;display:block;}
+			.button{display:inline-block;width:100px;height:50px;line-height:50px;background-color:silver;color:black;text-align:center;margin-right:10px;margin-bottom:10px;margin-top:10px;cursor:pointer}
+		</style>
+	</head>
+	<body>
+		<div style="position:fixed;right:0;z-index:999">
+			<div class="button" onclick="zoomIn()">Zoom In</div><br/><div class="button" onclick="zoomOut()">Zoom Out</div><br/><br/>
+		</div>
+		<div class="wrapper" id="handler">
+			<canvas id="layer2" style="z-index: 2;" width="300" height="300">No canvas support</canvas>
+			<canvas id="layer1" style="z-index: 1;width:300px;height:300px" width="300" height="300">No canvas support</canvas>
+		</div>
+		<script>
+ var layer1 = document.getElementById('layer1');
+ var layer2 = document.getElementById('layer2');
+ var context1 = layer1.getContext('2d');
+ var context2 = layer2.getContext('2d');
+ var canvasWidth = layer1.width;
+ var canvasHeight = layer1.height;
+ var dragId;
+ var dragOffsetX;
+ var dragOffsetY;
+ var drag = false;
+ var font = '20pt san-serif';
+ var fontHeight = 20;
+ var majorPremiseMet;
+ var minorPremiseMet;
+ var circlesNeeded = 3;
+ var correctSyllogism;
+ var blankSyllogism;
+ var majorPremise;
+ var minorPremise;
+
+ var zoomValue = 1;
+ var widthInitial = 300;
+ var heightInitial = 300;
+
+ var circlesArray = new Array();
+ var Circle = function(x, y, radius) {
+   this.x = x; //Centre of the circle
+   this.y = y; //Centre of the circle
+   this.radius = radius;
+ };
+
+ var staticTextArray = [];
+ var movableTextArray = [];
+ var clickedInArray = [];
+ var moveText;
+
+window.addEventListener("mousedown", function(e) {
+   var pos = getMousePos(layer1, e);
+     whichCircleClickedIn(pos.x, pos.y);
+ });
+
+window.addEventListener("mouseup", function(e) {
+   drag = false;
+   moveText = false;
+   dragId = -1;
+ })
+
+function getMousePos(canvas, e) {
+
+var finalX = Math.floor(e.clientX / zoomValue);
+var finalY = Math.floor(e.clientY / zoomValue);
+
+console.log(finalX, e.clientX);
+
+var rect = canvas.getBoundingClientRect();
+
+if (zoomValue>1)
+{
+   return {
+     x: finalX - rect.left,
+     y: finalY - rect.top
+   };
+}
+else
+{
+   return {
+     x: e.clientX - rect.left,
+     y: e.clientY - rect.top
+   };
+}
+
+
+
+
+
+
+
+
+
+ }
+
+ function main(level) {
+   createCircles();
+   drawCircles();
+ }
+
+function zoomIn() {
+ if (zoomValue>2)return
+ zoomValue = zoomValue + 0.1;
+ var finalWidth = Math.floor(widthInitial * zoomValue) + 'px';
+ var finalHeight = Math.floor(heightInitial * zoomValue) + 'px';
+ document.getElementById("layer1").style.width = finalWidth;
+ document.getElementById("layer1").style.height = finalHeight;
+ document.getElementById("layer2").style.width = finalWidth;
+ document.getElementById("layer2").style.height = finalHeight;
+ document.getElementsByClassName("wrapper")[0].style.width = finalWidth;
+ document.getElementsByClassName("wrapper")[0].style.height = finalHeight;
+}
+
+function zoomOut() {
+ if (zoomValue == 1)return
+ zoomValue = zoomValue - 0.1;
+ var finalWidth = Math.floor(widthInitial * zoomValue) + 'px';
+ var finalHeight = Math.floor(heightInitial * zoomValue) + 'px';
+ document.getElementById("layer1").style.width = finalWidth;
+ document.getElementById("layer1").style.height = finalHeight;
+ document.getElementById("layer2").style.width = finalWidth;
+ document.getElementById("layer2").style.height = finalHeight;
+ document.getElementsByClassName("wrapper")[0].style.width = finalWidth;
+ document.getElementsByClassName("wrapper")[0].style.height = finalHeight;
+}
+
+ function circleEdgeClicked(x, y) {
+   var color = new Uint32Array(context1.getImageData(x, y, 1, 1).data.buffer)[0];
+   return (color << 8) === 0xff00;
+ }
+
+ function whichCircleClickedIn(x, y) {
+   var fillColorR = 230,
+     fillColorG = 200,
+     fillColorB = 50;
+
+
+   if (circleEdgeClicked(x, y)) {
+     return false;
+   }
+
+   var tempArray = new Array();
+   //loops through circles and adds all circles clicked in to a temp array
+   for (var i = 0; i < circlesArray.length; i++) {
+     var circle = circlesArray[i];
+     var distanceSquared = (x - circle.x) * (x - circle.x) + (y - circle.y) * (y - circle.y);
+     if (distanceSquared <= circle.radius * circle.radius) {
+       tempArray.push(i);
+     }
+   }
+
+   if (tempArray.length < 1) {
+     return;
+   }
+
+   var hasBeenAlreadyClickedIn = false;
+   var clickedInArrayLocation;
+   if (clickedInArray.length > 0) {
+     for (var i = 0; i < clickedInArray.length; i++) {
+       if (clickedInArray[i].equals(tempArray)) {
+         hasBeenAlreadyClickedIn = true;
+         clickedInArrayLocation = i;
+       }
+     }
+   }
+
+   if (hasBeenAlreadyClickedIn === false) {
+     tempArray.sort();
+     clickedInArray.push(tempArray);
+     paintLocation(x, y, fillColorR, fillColorG, fillColorB);
+   } else {
+     clickedInArray.splice(clickedInArrayLocation, 1);
+     // paintLocation(x, y, 255, 255, 255);
+     paintLocation(x, y, 0, 0, 0);
+   }
+ }
+
+ function whichCircleIsPremiseIn(rectangle) {
+   var tempPremiseLocation = [];
+   for (var i = 0; i < circlesArray.length; i++) {
+     var dx = Math.max(circlesArray[i].x - rectangle.x, (rectangle.x + rectangle.width) - circlesArray[i].x);
+     var dy = Math.max(circlesArray[i].y - rectangle.y, (rectangle.y + rectangle.height) - circlesArray[i].y);
+     var inCircle = circlesArray[i].radius * circlesArray[i].radius >= dx * dx + dy * dy;
+     if (inCircle) {
+       tempPremiseLocation.push(i);
+     }
+   }
+   if (tempPremiseLocation.length === 1) {
+     return tempPremiseLocation;
+   } else {
+     return null;
+   }
+ }
+
+ function paintLocation(startX, startY, r, g, b) {
+   var colorLayer = context1.getImageData(0, 0, canvasWidth, canvasHeight);
+   pixelPos = (startY * canvasWidth + startX) * 4;
+
+   startR = colorLayer.data[pixelPos];
+   startG = colorLayer.data[pixelPos + 1];
+   startB = colorLayer.data[pixelPos + 2];
+
+   var pixelStack = [
+     [startX, startY]
+   ];
+
+   var drawingBoundTop = 0;
+   while (pixelStack.length) {
+     var newPos, x, y, pixelPos, reachLeft, reachRight;
+     newPos = pixelStack.pop();
+     x = newPos[0];
+     y = newPos[1];
+
+     pixelPos = (y * canvasWidth + x) * 4;
+     while (y-- >= drawingBoundTop && matchStartColor(colorLayer, pixelPos, startR, startG, startB)) {
+       pixelPos -= canvasWidth * 4;
+     }
+     pixelPos += canvasWidth * 4;
+     ++y;
+     reachLeft = false;
+     reachRight = false;
+     while (y++ < canvasHeight - 1 && matchStartColor(colorLayer, pixelPos, startR, startG, startB)) {
+       colorPixel(colorLayer, pixelPos, r, g, b);
+
+       if (x > 0) {
+         if (matchStartColor(colorLayer, pixelPos - 4, startR, startG, startB)) {
+           if (!reachLeft) {
+             pixelStack.push([x - 1, y]);
+             reachLeft = true;
+           }
+         } else if (reachLeft) {
+           reachLeft = false;
+         }
+       }
+
+       if (x < canvasWidth - 1) {
+         if (matchStartColor(colorLayer, pixelPos + 4, startR, startG, startB)) {
+           if (!reachRight) {
+             pixelStack.push([x + 1, y]);
+             reachRight = true;
+           }
+         } else if (reachRight) {
+           reachRight = false;
+         }
+       }
+
+       pixelPos += canvasWidth * 4;
+     }
+   }
+   context1.putImageData(colorLayer, 0, 0);
+ }
+
+ function matchStartColor(colorLayer, pixelPos, startR, startG, startB) {
+   var r = colorLayer.data[pixelPos];
+   var g = colorLayer.data[pixelPos + 1];
+   var b = colorLayer.data[pixelPos + 2];
+
+   return (r == startR && g == startG && b == startB);
+ }
+
+ function colorPixel(colorLayer, pixelPos, r, g, b) {
+   colorLayer.data[pixelPos] = r;
+   colorLayer.data[pixelPos + 1] = g;
+   colorLayer.data[pixelPos + 2] = b;
+   colorLayer.data[pixelPos + 3] = 255;
+ }
+
+ function createCircles() {
+   if (circlesNeeded === 3) {
+     circlesArray.push(new Circle((canvasWidth / 2), (canvasHeight / 2.4), (canvasWidth / 6)));
+     circlesArray.push(new Circle((canvasWidth / 2.4), (canvasHeight / 1.71), (canvasWidth / 6)));
+     circlesArray.push(new Circle((canvasWidth / 1.71), (canvasHeight / 1.71), (canvasWidth / 6)));
+   }
+ }
+
+ function drawCircles() {
+   for (var i = 0; i < circlesArray.length; i++) {
+     var circle = circlesArray[i];
+     context1.beginPath();
+     context1.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2, false);
+     context1.lineWidth = 5;
+     context1.strokeStyle = '#FF0000';
+     context1.stroke();
+     context1.closePath();
+   }
+ }
+
+ // Warn if overriding existing method
+ if (Array.prototype.equals)
+   console.warn("Overriding existing Array.prototype.equals. Possible causes: New API defines the method, there's a framework conflict or you've got double inclusions in your code.");
+ // attach the .equals method to Array's prototype to call it on any array
+ Array.prototype.equals = function(array) {
+   // if the other array is a falsy value, return
+   if (!array)
+     return false;
+
+   // compare lengths - can save a lot of time
+   if (this.length != array.length)
+     return false;
+
+   for (var i = 0, l = this.length; i < l; i++) {
+     // Check if we have nested arrays
+     if (this[i] instanceof Array && array[i] instanceof Array) {
+       // recurse into the nested arrays
+       if (!this[i].equals(array[i]))
+         return false;
+     } else if (this[i] != array[i]) {
+       // Warning - two different object instances will never be equal: {x:20} != {x:20}
+       return false;
+     }
+   }
+   return true;
+ }
+ Array.prototype.clean = function(deleteValue) {
+   for (var i = 0; i < this.length; i++) {
+     if (this[i] == deleteValue) {
+       this.splice(i, 1);
+       i--;
+     }
+   }
+   return this;
+ };
+
+ // Hide method from for-in loops
+ Object.defineProperty(Array.prototype, "equals", {
+   enumerable: false
+ });
+
+main();
+
+</script>
+</body>
+</html>
